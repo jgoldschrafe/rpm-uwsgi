@@ -1,0 +1,26 @@
+diff --git a/plugins/python/uwsgiplugin.py b/plugins/python/uwsgiplugin.py
+index 4b58db8..56f8426 100644
+--- a/plugins/python/uwsgiplugin.py
++++ b/plugins/python/uwsgiplugin.py
+@@ -14,10 +14,8 @@ if not sysconfig.get_config_var('Py_ENABLE_SHARED'):
+ else:
+ 	try:
+ 		LDFLAGS.append("-L%s" % sysconfig.get_config_var('LIBDIR'))
+-		os.environ['LD_RUN_PATH'] = "%s" % (sysconfig.get_config_var('LIBDIR'))
+ 	except:
+ 		LDFLAGS.append("-L%s/lib" % sysconfig.PREFIX)
+-		os.environ['LD_RUN_PATH'] = "%s/lib" % sysconfig.PREFIX
+ 
+ 
+ version = sysconfig.get_config_var('VERSION')
+diff --git a/plugins/rack/uwsgiplugin.py b/plugins/rack/uwsgiplugin.py
+index c2bd5de..1ab62f4 100644
+--- a/plugins/rack/uwsgiplugin.py
++++ b/plugins/rack/uwsgiplugin.py
+@@ -34,6 +34,5 @@ LDFLAGS = os.popen(RUBYPATH + " -e \"require 'rbconfig';print Config::CONFIG['LD
+ 
+ libpath = os.popen(RUBYPATH + " -e \"require 'rbconfig';print Config::CONFIG['libdir']\"").read().rstrip()
+ LDFLAGS.append('-L' + libpath )
+-os.environ['LD_RUN_PATH'] = libpath
+ LIBS = os.popen(RUBYPATH + " -e \"require 'rbconfig';print '-l' + Config::CONFIG['RUBY_SO_NAME']\"").read().rstrip().split()
+ 

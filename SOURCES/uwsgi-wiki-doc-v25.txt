@@ -1,0 +1,1133 @@
+= uWSGI Documentation (full list of options updated to 0.9.7.2) =
+
+The following list contains a good part (yes, not all, please help improving the doc instead of ranting...) of the uWSGI options in no particular order (even if you will find
+the most important/used on top). Every option can be set in all the supported configuration ways (command line args, environment variables,
+xml, ini, yaml and LDAP). Some option requires the loading of a plugin, in such case the name of the plugin will be reported in the doc.
+
+The examples use various style of configuration to force the user to better understand the way uWSGI works.
+
+If you are new to uWSGI you should probably give a look at the [wiki:Quickstart] and [wiki:Example Examples] sections for real-world-usage-configurations as the following huge list can really hurt you
+
+
+== Little introduction about config styles ==
+
+When choosing a configuration style or when moving from one configuration style to another, check the following rules:
+
+'''command line args:''' add the '''--''' prefix to the option
+
+the socket option will be:
+
+{{{
+--socket <path/address>
+}}}
+
+'''environment variable:''' the option name is uppercased and prefixed with UWSGI_, all the dashes are substituted with underscore
+
+max-vars option became
+
+{{{
+UWSGI_MAX_VARS="<n>"
+}}}
+
+'''xml:''' the root node should be <uwsgi> and all the option values are reported as text node. Options that work as flag can be reported without value
+
+socket and master options became
+
+{{{
+
+<uwsgi>
+    <socket>127.0.0.1:3031</socket>
+    <master/>
+</uwsgi>
+}}}
+
+'''ini:''' the config section should be ''uwsgi'', options that work as flag can be set as ''true'' or as ''1''
+
+socket and master options became
+
+{{{
+
+[uwsgi]
+socket = 127.0.0.1:3031
+master = true
+
+}}}
+
+'''yaml:''' the root element should be '''uwsgi''', options that work as flag can be set as ''true'' or as ''1''
+
+socket and master options became
+
+{{{
+uwsgi:
+  socket: 127.0.0.1
+  master: 1
+}}}
+
+'''ldap:''' it is a complex topic, you should check the dedicated wiki page. see [wiki:useLDAP]
+
+[[BR]]
+[[BR]]
+
+
+= The infinite list of options... =
+
+Here we came, take a breath and open your mind
+
+[[BR]]
+
+=== socket ===
+
+Specify the path (in case of UNIX socket) or the address (for INET sockets) of the socket where the uwsgi clients (your webserver) will connect to.
+You can specify up to 8 socket options. When used as a command line arg you can use the '-s' shortcut
+
+{{{
+--socket /tmp/uwsgi.sock
+}}}
+
+will bind to the unix socket /tmp/uwsgi.sock
+
+{{{
+-s 127.0.0.1:1717
+}}}
+
+will bind to ipv4 address 127.0.0.1 on port 1717
+
+{{{
+[uwsgi]
+socket = 127.0.0.1:1717
+socket = 127.0.0.1:2626
+}}}
+
+will bind to ipv4 address 127.0.0.1 on port 1717 and ipv4 address 127.0.0.1 on port 2626
+
+
+
+=== processes or workers ===
+
+Set the number of workers for preforking mode.
+This is the base for easy and safe concurrency in your app. More workers you add, more concurrent requests you can manage.
+Each worker correspond to a system process, so it consumes memory, choose carefully the right number. You can easily drop down your system if you set a too high value.
+
+When used as a command line arg you can shortcut it with -p 
+
+{{{
+--processes 8
+}}}
+
+will spawn 8 workers
+
+{{{
+--workers 4
+}}}
+
+will spawn 4 workers
+
+{{{
+-p 8
+}}}
+
+will spawn 8 workers
+
+{{{
+<uwsgi>
+    <workers>3</workers>
+</uwsgi>
+}}}
+
+will spawn 3 workers
+
+
+=== harakiri ===
+
+This will set the harakiri timeout (look at the wiki home page for a better understanding).
+Every request that will take longer than the seconds specified in the harakiri timeout will be dropped and the corresponding
+worker recycled.
+
+{{{
+--harakiri 60
+}}}
+
+will kill every request that will take more than 60 seconds to complete
+
+=== harakiri-verbose ===
+
+When a request is killed by harakiri you will get a message in the uWSGI log. Enabling this option
+will print additional info (for example in Linux will be reported the current syscall)
+
+{{{
+--harakiri-verbose
+}}}
+
+will enable the additional infos during aharakiri
+
+
+=== xmlconfig or xml ===
+
+Load the specified xml configuration file. When used as a command line arg it can be shortcutted with -x
+You can have multiple <uwsgi> stanzas in your file marked with the id attribute. To choose the stanza to use, specify
+its id after the filename (using a colon as a separator)
+
+{{{
+--xml /etc/myapp.xml
+}}}
+
+will load the /etc/myapp.xml config file
+
+{{{
+--xml /etc/myapp.xml:django
+}}}
+
+will use the uwsgi stanza marked as 'django' in the /etc/myapp.xml config file
+
+This file can be something like this:
+
+{{{
+<all_the_apps>
+
+  <uwsgi id="turbogears">
+    <socket>/tmp/tg.sock</socket>
+  </uwsgi>
+
+  <uwsgi id="django">
+    <socket>/tmp/django.sock>
+  </uwsgi>
+
+</all_the_apps>
+}}}
+
+in this case the root node can be whatever you want (this will allows you to add uwsgi stanzas in other xml files)
+
+This option is implicit when the last command line argument ends with .xml
+
+{{{
+/usr/bin/uwsgi /etc/myapp.xml
+}}}
+
+will automatically load the /etc/myapp.xml config file
+
+=== daemonize ===
+
+Run the processes in background using a logfile or a udp server
+
+{{{
+--daemonize /var/log/uwsgi.log
+}}}
+
+will damonize uWSGI writing log messages to /var/log/uwsgi.log
+
+{{{
+[uwsgi]
+daemonize = 192.168.0.100:4000
+}}}
+
+will daemonize uWSGI sending logs the the udp server listening on address 192.168.0.100 port 4000 See UdpLogging
+
+=== listen ===
+
+set the socket listen queue (default: 100). 
+
+Every socket has an associated queue where request will be put waiting for a process to became ready to accept them.
+When this queue is full requests will be rejected.
+
+The maximum value is system/kernel dependent. 
+
+
+=== max-vars ===
+
+Set the max number of variables a uwsgi client (your webserver) can pass.
+This is only a security mesasure, probably you will never need to touch it.
+
+=== buffer-size ===
+
+Set the internal buffer size for uwsgi packet parsing. Default is 4k.
+
+If you plan to receive big requests with a lot of headers you can increase this value upto 64k
+
+{{{
+--buffer-size 32768
+}}}
+
+will allows the uWSGI server to receive uwsgi packet up to 32k, bigger packet will be rejected.
+
+=== memory-report ===
+
+enable memory usage report.
+This will print in the request log information about RSS and address space usage.
+
+
+{{{
+<uwsgi>
+    <memory-report/>
+</uwsgi>
+}}}
+
+
+=== cgi-mode ===
+
+Enable cgi mode. Responses will not be HTTP valid response, but cgi one (the Status: header will be added)
+
+=== abstract-socket ===
+
+
+=== chmod-socket or chmod ===
+
+unix sockets are filesystem object that must obey to unix permission scheme.
+You can set unix sockets permissions with this option if your webserver has no access to the uWSGI socket.
+
+When used as a flag this option will set permissions to 666, otherwise the spcified scheme will be used
+
+{{{
+<uwsgi>
+    <chmod-socket/>
+</uwsgi>
+}}}
+
+will set socket permissions to 666
+
+{{{
+<uwsgi>
+    <chmod-socket>644</chmod-socket>
+</uwsgi>
+}}}
+
+will set socket permissions to 644
+
+
+=== map-socket ===
+
+As you can bind a uWSGI instance to multiple sockets, you can map specific workers to specific soxkets to implement in-process QoS
+
+{{{
+[uwsgi]
+socket = /tmp/uwsgi0.sock
+socket = /tmp/uwsgi1.sock
+workers = 5
+map-socket = 0:1,2,3
+map-socket = 1:4,5
+}}}
+
+This will map workers 1, 2 and 3 to the first socket and 4 and 5 to the second one.
+
+If you host multiple apps in the same uWSGI instance, you can easily dedicate resources to each of them.
+
+=== enable-threads ===
+
+Enable threads in the embedded languages. This will allow to spawn threads in your app.
+
+=== single-interpreter ===
+
+Some of the supported languages (like python) has the concept of "multiple interpreters".
+They allows to isolate apps living in the same process. If you do not want this kind of feature
+use this option.
+
+=== master ===
+
+enable the master process
+
+=== emperor ===
+
+Start the uWSGI [wiki:Emperor]
+
+=== emperor-amqp-vhost ===
+
+set virtualhost name in AMQP emperor mode
+
+=== emperor-amqp-username ===
+
+set username name in AMQP emperor mode
+
+=== emperor-amqp-password ===
+
+set password name in AMQP emperor mode
+
+=== reload-mercy ===
+
+set the maximum amount of seconds to wait for a worker death during a graceful reload
+
+{{{
+--reload-mercy 8
+}}}
+
+will brutally kill every worker that will not terminate itself within 8 seconds during graceful reload
+
+=== exit-on-reload ===
+
+force the uWSGI stack to terminate itself even if a reload is requested.
+This option is useful only in exotic cases.
+
+
+=== help or usage ===
+
+print the help on the stdout then exit
+
+
+=== reaper ===
+
+Enable reaper mode. After each request the server will cal waitpid(-1) to get rid of all the zombies.
+If you spawn subprocesses in your app and you ends with zombies all over the place you can enable this option.
+But you should fix your process spawning usage (if you can) ...
+
+=== max-requests ===
+
+set the maximum number of requests for each worker.
+When a worker reaches this number it will get recycled. You can use this option to dumb fight memory leaks (even if reload-on-as and reload-on-rss
+are more useful for this kind of problem)
+
+{{{
+[uwsgi]
+max-requests = 1000
+}}}
+
+will recycle a worker every 1000 requests
+
+=== socket-timeout ===
+
+set the internal timeout for all the socket operations. (default 4 seconds)
+
+{{{
+--socket-timeout 10
+}}}
+
+will close connections after 10 seconds of inactivity
+
+=== sharedarea ===
+
+This enables the SharedArea. This is a low level shared memory. If you want a more usable/user-friendly system look at the CachingFramework
+
+
+{{{
+--sharedarea 10
+}}}
+
+will create a shared memory area of 10 pages
+
+=== cache ===
+
+Enable the shared cache. See CachingFramework
+
+=== cache-blocksize ===
+
+set the cache blocksize
+
+=== cache-store ===
+
+enable persistent store for the uWSGI cache
+
+=== cache-store-sync ===
+
+set the msync() frequency for caching persistent store.
+
+=== queue ===
+
+UNDOCUMENTED
+
+=== queue-blocksize ===
+ 
+UNDOCUMENTED
+
+=== queue-store ===
+
+UNDOCUMENTED
+
+=== queue-store-sync ===
+
+UNDOCUMENTED
+
+=== spooler ===
+
+Enable the [wiki:Spooler] on the specified directory
+
+{{{
+[uwsgi]
+spooler = /home/foo/spooler
+}}}
+
+will save spooler file in the /home/foo/spooler directory
+
+=== disable-logging ===
+
+Disable request logging. Log only errors and uWSGi internal messages
+
+=== pidfile ===
+
+write the pidfile to the specified file before privileges drop
+
+=== pidfile2 ===
+
+write the pidfile to the specified file after privileges drop
+
+=== chroot ===
+
+chroot() to the specified directory
+
+=== gid ===
+
+set the gid under the uWSGI server will run
+
+=== uid ===
+
+set the uid under the uWSGI server will run
+
+=== ini ===
+
+=== yaml or yml ===
+
+
+=== ldap ===
+
+Load configuration fron an ldap server. See UseLdap
+
+=== ldap-schema ===
+
+dump the LDAP schema (old-style format)
+
+=== ldap-schema-ldif ===
+
+dump the LDAP schema in LDIF format (new openldap)
+
+=== no-server ===
+
+initialize the uWSGI server but exit as soon as the initialization is complete (useful for testing)
+
+=== no-defer-accept ===
+
+by default (where available) uWSGI will defer the accept() of requests until some data is sent by the client (this is a security/performance measure).
+If you want to disable this feature specify this option.
+
+=== limit-as ===
+
+limit the address space usage of each uWSGI process using POSIX/UNIX setrlimit()
+
+{{{
+--limit-as 256
+}}}
+
+will avoid uWSGI processes to grow over 256MB of address space.
+Address space is the virtual memory a process has access to. It does not correspond to physical memory.
+
+Read and understand this page before enabling it: http://en.wikipedia.org/wiki/Virtual_memory
+
+=== reload-on-as ===
+
+recycle a workers when its address space usage is over the limit specified
+
+{{{
+--reload-on-as 128
+}}}
+
+will reload a worker if it consumes more than 128 megs of address space
+
+=== reload-on-rss ===
+
+Works as reload-on-as but it control the physical unshared memory.
+You can enable both
+
+{{{
+uwsgi:
+  reload-on-as: 128
+  reload-on-rss: 96
+}}}
+
+will recycle a workers when its address space usage is hgher than 128 megs or its rss usage is higher than 96 megs
+
+=== touch-reload ===
+
+gracefully reload the uWSGI stack when a file/directory changes.
+
+{{{
+uwsgi:
+  touch-reload: /tmp/reload.txt
+}}}
+
+if you
+
+{{{
+touch /tmp/reload.txt
+}}}
+
+the uWSGI server will be gracefully reloaded
+
+=== limit-post ===
+
+limit the size of body in HTTP requests. It reads the CONTENT_LENGTH uwsgi variable to know the size
+
+{{{
+--limit-post 65536
+}}}
+
+will disallow request body higher than 64k
+
+=== no-orphans ===
+
+automatically kill workers without a master process
+
+=== prio ===
+
+set to process priority for the system scheduler
+
+{{{
+<uwsgi>
+    <prio>20</prio>
+</uwsgi>
+}}}
+
+will set the process priority to 20 (the value is system dependent)
+
+=== cpu-affinity ===
+
+Set the CPU affinity (Linux Only) See http://lists.unbit.it/pipermail/uwsgi/2011-March/001594.html
+
+=== post-buffering ===
+
+enable http body buffering. uWSGI will save to disk all HTTP body bigger than the limit specified.
+
+{{{
+[uwsgi]
+post-buffering = 8192
+}}}
+
+will save to disk all the HTTP body bigger than 8K.
+This option is required for Rack applications as they require a rewindable input stream.
+
+=== post-buffering-bufsize ===
+
+set the internal buffer size during post buffering (this is the memory allocated to read chunks of the socket stream)
+
+{{{
+post-buffering-bufsize 65536
+}}}
+
+will allocate 64k as the buffer for socket recv(). For a 128k body two cycle/syscall will be used.
+
+This is a very advanced option you will probably never need to touch.
+
+=== upload-progress ===
+
+Enable the embedded upload progress. You pass the name of a directory where uWSGI as write permissions.
+For every upload a JSON file will be written to this directory reporting the status of the upload. You can use ajax to read
+these files. So configure your webserver to allow access to the directory set.
+
+{{{
+--upload-progress /var/www/progress
+}}}
+
+The user upload a file to the url 
+
+{{{
+http://uwsgi.it/upload?X-Progress-ID=550e8400-e29b-41d4-a716-446655440000
+}}}
+
+uWSGI find the X-Progress-ID in the query string and create a file called 
+
+{{{
+550e8400-e29b-41d4-a716-446655440000.js
+}}}
+
+in /var/www/progress with this kind of content
+
+{{{
+{ "state" : "uploading", "received" : 170000, "size" : 300000 }
+}}}
+
+
+Supposing you have mapped /progress to /var/www/progress in your webserver, you can get those json data via
+ajax pointing to 
+
+{{{
+/progress/550e8400-e29b-41d4-a716-446655440000.js
+}}}
+
+probably your webserver has a very similar functionality, but if you need to hack it (or simply have more control) delegate
+this to the uWSGI server
+
+=== no-default-app ===
+
+By default, when uWSGI does not find a corresponding app for the specified SCRIPT_NAME variable, will use the default app
+(most of the time the app mounted under /). Enabling this option will return an error in case of unavailable app.
+
+=== manage-script-name ===
+
+If for some reason your webserver cannot manage SCRIPT_NAME you can force uWSGI to rebuild the PATH_INFO automatically.
+
+=== udp ===
+
+start a udp server. Mainly useful for [wiki:UseSnmp snmp] or as a shared logger for UdpLogging
+
+=== multicast ===
+
+internal option, usable by third party plugins.
+
+=== cluster ===
+
+Join the specified cluster. See [wiki:Clustering]
+
+=== cluster-nodes ===
+
+You can get the list of nodes in a cluster without joining it
+
+{{{
+--cluster-nodes 225.1.1.1:1717
+}}}
+
+will get the list of nodes of the 225.1.1.1:1717 cluster. This list is used internally by the uwsgi load balancing api.
+
+=== cluster-reload ===
+
+gracefully reload a whole cluster
+
+{{{
+--cluster 225.1.1.1:1717 --cluster-reload
+}}}
+
+will reload all the nodes in the 225.1.1.1:1717 cluster
+
+=== cluster-log ===
+
+log a message to all the nodes of a cluster
+
+{{{
+--cluster 225.1.1.1:1717 --cluster-log "Hello World"
+}}}
+
+will print "Hello World" to all the nodes logfiles
+
+=== subscribe-to ===
+
+subscribe to a SubscriptionServer, you can subscribe to multiple server using this option multiple times
+
+{{{
+[uwsgi]
+subscribe-to = 192.168.0.1:2626:unbit.it
+subscribe-to = 192.168.0.2:2626:uwsgi.it
+}}}
+
+=== shared-socket ===
+
+Advanced option for plugin writers or special needs. Allow to create a socket during server early startup
+and use it after privileges drop or jailing.
+
+=== snmp ===
+
+enable the SNMP server. See UseSnmp
+
+=== snmp-community ===
+
+set the snmp community string
+
+=== check-interval ===
+
+The master process make a scan every seconds. You can increase this time if you need. DISCOURAGED.
+
+=== binary-path ===
+
+If you do not have uWSGI in the system path you can force its path with this option to permit the reloading system
+and the [wiki:Emperor] to easily find the binary to execute.
+
+=== async ===
+
+Enable the async mode. See AsyncSupport
+
+=== logto ===
+
+Log to specific file or udp server
+
+=== logfile-chown ===
+
+=== log-syslog ===
+
+Log to syslog instead of a log-file.
+
+Passing a parameter makes uwsgi use the parameter as program-name in the syslog entry header:
+{{{
+--log-syslog mywebapp
+}}}
+
+=== log-master ===
+
+delegate the write of the logs to the master process (this will put all of the logging I/O to a single process). Useful for
+system with advanced I/O schedulers/elevators
+
+=== logdate ===
+
+report the date in every log line. You can pass an option with strftime() syntax
+
+=== log-zero ===
+
+log requests with zero response size
+
+=== log-slow ===
+
+=== log-4xx ===
+
+=== log-5xx ===
+
+=== log-big ===
+
+=== log-sendfile ===
+
+=== log-micros ===
+
+use microseconds resolution for response-time logging (milliseconds resolution is the default)
+
+=== master-as-root ===
+
+run the uWSGI master process as root
+
+=== chdir ===
+
+chdir() to specified directory before privileges drop
+
+=== chdir2 ===
+chdir() to specified directory after privileges drop
+
+
+=== mount ===
+
+Allow mounting of multiple apps in the same process
+
+{{{
+--mount /pinax=/var/www/pinax/deploy/pinax.wsgi
+}}}
+
+=== grunt ===
+
+allows grunt processes
+
+=== threads ===
+
+enable threaded operational mode.
+You have to specify the number of threads per worker
+
+{{{
+--threads 40 --workers 2
+}}}
+
+will spawn two workers with 40 threads (total 80 threads)
+
+
+=== vhost ===
+
+enable virtual hosting mode. See VirtualHosting
+
+=== vhost-host ===
+
+By default the virtualhosting mode use the SERVER_NAME variable as the hostname key.
+If you want to use the HTTP_HOST one (corresponding to the Host: header) add this option
+
+=== check-static ===
+
+Specify a directory that uWSGI will check before passing control to a specific handler.
+
+uWSGI will check if the requested PATH_INFO has a file correspondence in this directory and eventually will serve it
+
+{{{
+--check-static /var/www/example.com
+}}}
+
+If the client ask for foo.png and this file exists as /var/www/example.com/foo.png uWSGI will directly serves it using the choosen method (sendfile() by default)
+
+=== static-map ===
+
+map a resource as a static file area
+
+{{{
+[uwsgi]
+static-map = /media=/var/www/django/contrib/admin/media
+static-map = /images=/var/www/example.com/images
+}}}
+
+Whenever a PATH_INFO starts with one of the configured resources, uWSGI will serve the file using the choosen method (sendfile() by default)
+
+=== file-serve-mode ===
+
+Set the static serving mode:
+
+x-sendfile -> will use the X-Sendfile header (apache, Cherokee, lighttpd)
+
+x-accel-redirect -> will use the X-Accel-Redirect header (nginx)
+
+default -> sendfile()
+
+{{{
+--file-serve-mode x-sendfile
+}}}
+
+=== check-cache ===
+
+check if an item named as PATH_INFO is available in the [wiki:CachingFramework uWSGI cache] and eventually will serves it
+
+=== close-on-exec ===
+
+set close-on-exec flag on the uWSGI socket. This will avoid external processes generated in a request to inherit the socket file descriptor.
+
+=== mode ===
+
+generic option, the apps can read this value with uwsgi.mode
+
+=== env ===
+set an environment variable
+
+{{{
+[uwsgi]
+env = DJANGO_SETTINGS_MODULE=mysite.settings
+}}}
+
+this will set DJANGO_SETTINGS_MODULE to mysite.settings
+
+=== vacuum ===
+
+automatically remove unix socket and pidfiles on server exit
+
+=== loop ===
+
+set the LoopEngine (advanced option)
+
+=== worker-exec ===
+
+funny option to map a new executable to a uWSGI worker.
+You can run a php fastcgi server pool in this way
+
+{{{
+/usr/bin/uwsgi --workers 4 --worker-exec /usr/bin/php53-cgi 
+}}}
+
+=== attach-daemon ===
+
+attach an external process to the uWSGI master process, allowing it to control/monitor/respawn this process.
+A typical usage is attaching a memcached instance
+
+{{{
+[uwsgi]
+master = true
+attach-daemom = memcached
+}}}
+
+
+
+=== plugins ===
+
+load the specified plugins
+
+{{{
+--plugins psgi,greenlet
+}}}
+
+will load the psgi plugin and the greenlet plugin
+
+=== allowed-modifiers ===
+
+Limit the client access to only a subset of [wiki:uwsgiProtocol modifiers]
+
+{{{
+--allowed-modifiers 0,111
+}}}
+
+will allow access only the WSGI handler and the cache handler
+
+=== remap-modifier ===
+
+=== dump-options ===
+
+print all the available options then exit
+
+=== show-config ===
+
+print the current configuration in ini format (use this output when you ask for help in the mailing-list, THANKS)
+
+=== print ===
+
+commodity option, print a string during config file parsing
+
+{{{
+[uwsgi]
+print = foo
+}}}
+
+will print 'foo' on server startup
+
+=== version ===
+
+print the uWSGI version and exit
+
+
+=== wsgi-file or file [python plugin required] ===
+
+load the specified WSGI file (compatible with Graham's mod_wsgi format)
+
+=== eval [python plugin required] ===
+
+evaluate a string as a WSGI entry point
+
+{{{
+<uwsgi>
+  <eval>
+def application(e, sr):
+    pass
+  </eval>
+</uwsgi>
+}}}
+
+=== module [python plugin required] ===
+
+load the specified python WSGI module (must be in the PYTHONPATH)
+
+=== callable [python plugin required] ===
+
+set the callable to use for WSGI modules (default 'application')
+
+=== test [python plugin required] ===
+
+test if a module can be imported successfully
+
+=== home or virtualenv or venv or pyhome [python plugin required] ===
+
+set the specified virtualenv for python apps
+
+{{{
+--virtualenv /apps/env001
+}}}
+
+
+will use the virtualenv in /apps/env001
+
+=== pythonpath or python-path or pp [python plugin required] ===
+
+add a directory (or an egg) to the PYTHONPATH
+You can specify this option up to 64 times.
+
+{{{
+[uwsgi]
+pp = myapp/lib
+pp = trac.egg
+}}}
+
+=== pymodule-alias [python plugin required] ===
+
+magic option allowing python modules remapping. See PymoduleAlias
+
+=== pyargv [python plugin required] ===
+
+set the python sys.argv
+
+{{{
+--pyargv "one two three"
+}}}
+
+will set sys.argv to ('one','two','three')
+
+=== optimize ===
+
+set the python optimizazion level (dangerous)
+
+=== paste ===
+
+use paste.deploy to load a WSGI app
+
+{{{
+uwsgi --paste config:/foo/development.ini
+}}}
+
+=== ini-paste ===
+
+shortcut for --ini + --paste, after file parsing it will use the same file as paste.deploy config file
+
+=== catch-exceptions ===
+
+print traceback in your browser instead of the logfile (DO NOT USE IT IN PRODUCTION)
+
+=== ignore-script-name ===
+
+=== pep3333-input ===
+
+=== reload-os-env ===
+
+=== no-site [python plugin required] ===
+
+Disable the import of python site.py module
+
+=== ping [ping plugin required] ===
+
+utility option for scripts. It pings a uwsgi server.
+If the ping is successfull the process exit with a 0 code, otherwise with a value > 0
+
+{{{
+/usr/bin/uwsgi --ping 192.168.0.100:1717
+}}}
+
+will ping the uWSGI server on 192.168.0.100:1717
+
+=== ping-timeout [ping plugin required] ===
+
+set the ping-timeout (default to 3 seconds). It is the maximum number of seconds to wait before considering a uWSGI instance dead.
+
+{{{
+/usr/bin/uwsgi --ping 192.168.0.100:1717 --ping-timeout 10
+}}}
+
+will set the ping timeout to 10 seconds
+
+=== nagios ===
+
+UNDOCUMENTED
+
+=== fastrouter ===
+
+Run the fastrouter (it is a uwsgi proxy/load balancer) on specific address
+
+{{{
+[uwsgi]
+fastrouter = 127.0.0.1:3017
+}}}
+
+run the fastrouter on address 127.0.0.1 port 3017
+
+=== fastrouter-use-cache ===
+
+check the uwsgi cache to get hostname:address mapping
+
+=== fastrouter-use-pattern ===
+
+use a filesystem pattern to get hostname:address mapping
+
+=== fastrouter-use-base ===
+
+=== fastrouter-events ===
+
+limit the max number of async events the fastrouter can return in one cycle
+
+=== fastrouter-subscription-server ===
+
+add a SubscriptionServer to the fastrouter to build the hostname:address map
+
+=== fastrouter-timeout ===
+
+set the internal fastrouter timeout
+
+=== http ===
+
+enable the embedded http server/router/gateway/loadbalancer/proxy
+
+=== http-var ===
+=== http-to ===
+=== http-modifier1 ===
+=== http-use-cache ===
+=== http-use-pattern ===
+=== http-use-base ===
+=== http-use-cluster ===
+=== http-events ===
+
+=== http-subscription-server ===
+
+enable the SubscriptionServer for clustering and massive hosting/load-balancing
+
+=== http-timeout ===
+
+set the internal http socket timeout
+
+=== ugreen [ugreen plugin required] ===
+
+enable uGreen as suspend/resume engine. See [wiki:uGreen]
+
+=== ugreen-stacksize [ugreen plugin required] ===
+
+set the stack size for [wiki:uGreen]

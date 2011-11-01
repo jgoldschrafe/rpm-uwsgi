@@ -1,0 +1,11 @@
+--- a/uwsgiconfig.py	2011-10-09 16:10:25.683322934 -0700
++++ b/uwsgiconfig.py	2011-10-09 16:10:18.134346887 -0700
+@@ -726,7 +726,7 @@
+     else:
+         p_cflags.append("-D%s_plugin=%s_plugin" % (up.NAME, name))
+ 
+-    plugin_dest = uc.get('plugin_dir') + '/' + name + '_plugin'
++    plugin_dest = name + '_plugin'
+ 
+     shared_flag = '-shared'
+ 

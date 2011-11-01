@@ -1,0 +1,468 @@
+== uWSGI Documentation (0.9.6 release) ==
+
+We will start with the list of command line args:
+
+{{{
+Usage: ./uwsgi [options...]
+    -s|--socket <name>            path (or name) of UNIX/TCP socket to bind to
+    -l|--listen <num>             set socket listen queue to <n> (default 64, maximum is system dependent)
+    -z|--socket-timeout <sec>     set socket timeout to <sec> seconds (default 4 seconds)
+    -b|--buffer-size <n>          set buffer size to <n> bytes
+    -L|--disable-logging          disable request logging (only errors or server messages will be logged)
+    -x|--xmlconfig <path>         path of xml config file
+    -w|--module <module>          name of python config module
+    -t|--harakiri <sec>           set harakiri timeout to <sec> seconds
+    -p|--processes <n>            spawn <n> uwsgi worker processes
+    -O|--optimize <n>             set python optimization level to <n>
+    -v|--max-vars <n>             set maximum number of vars/headers to <n>
+    -A|--sharedarea <n>           create a shared memory area of <n> pages
+    -c|--cgi-mode                 set cgi mode
+    -C|--chmod-socket[=NNN]       chmod socket to 666 or NNN
+    -P|--profiler                 enable profiler
+    -m|--memory-report            enable memory usage report
+    -i|--single-interpreter       single interpreter mode
+    -a|--abstract-socket          set socket in the abstract namespace (Linux only)
+    -T|--enable-threads           enable threads support
+    -M|--master                   enable master process manager
+    -H|--home <path>              set python home/virtualenv
+    -h|--help                     this help
+    -r|--reaper                   process reaper (call waitpid(-1,...) after each request)
+    -R|--max-requests             maximum number of requests for each worker
+    -j|--test                     test if uWSGI can import a module
+    -Q|--spooler <dir>            run the spooler on directory <dir>
+    --callable <callable>         set the callable (default 'application')
+    --pidfile <file>              write the masterpid to <file>
+    --chroot <dir>                chroot to directory <dir> (only root)
+    --gid <id/groupname>          setgid to <id/groupname> (only root)
+    --uid <id/username>           setuid to <id/username> (only root)
+    --chdir <dir>                 chdir to <dir> before app loading
+    --chdir2 <dir>                chdir to <dir> after module loading
+    --no-server                   initialize the uWSGI server then exit. Useful for testing and using uwsgi embedded module
+    --no-defer-accept             disable the no-standard way to defer the accept() call (TCP_DEFER_ACCEPT, SO_ACCEPTFILTER...)
+    --paste <config:/egg:>        load applications using paste.deploy.loadapp()
+    --check-interval <sec>        set the check interval (in seconds) of the master process
+    --pythonpath <dir>            add <dir> to PYTHONPATH
+    --python-path <dir>           add <dir> to PYTHONPATH
+    --pp <dir>                    add <dir> to PYTHONPATH
+    --pyargv <args>               assign args to python sys.argv
+    --limit-as <MB>               limit the address space of processes to MB megabytes
+    --limit-post <bytes>          limit HTTP content_length size to <bytes>
+    --post-buffering <bytes>      buffer HTTP POST request higher than <bytes> to disk
+    --post-buffering-bufsize <b>  set the buffer size to <b> bytes for post-buffering
+    --prio <N>                    set process priority/nice to N
+    --no-orphans                  automatically kill workers on master's dead
+    --udp <ip:port>               bind master process to udp socket on ip:port
+    --multicast <group>           set multicast group
+    --snmp                        enable SNMP support in the UDP server
+    --snmp-community <value>      set SNMP community code to <value>
+    --erlang <name@ip>            enable the Erlang server with node name <node@ip>
+    --erlang-cookie <cookie>      set the erlang cookie to <cookie>
+    --nagios                      do a nagios check
+    --binary-path <bin-path>      set the path for the next reload of uWSGI (needed for chroot environments)
+    --proxy <socket>              run the uwsgi proxy on socket <socket>
+    --proxy-node <socket>         add the node <socket> to the proxy
+    --proxy-max-connections <n>   set the max number of concurrent connections mnaged by the proxy
+    --wsgi-file <file>            load the <file> wsgi file
+    --file <file>                 use python file instead of python module for configuration
+    --eval <code>                 evaluate code for app configuration
+    --async <n>                   enable async mode with n core
+    --logto <logfile|addr>        log to file/udp
+    --logdate                     add timestamp to loglines
+    --ignore-script-name          disable uWSGI management of SCRIPT_NAME
+    --no-default-app              do not fallback unknown SCRIPT_NAME requests
+    --ini <inifile>               path of ini config file
+    --ini-paste <inifile>         path of ini config file that contains paste configuration
+    --ldap <url>                  url of LDAP uWSGIConfig resource
+    --ldap-schema                 dump uWSGIConfig LDAP schema
+    --ldap-schema-ldif            dump uWSGIConfig LDAP schema in LDIF format
+    --grunt                       enable grunt workers
+    --ugreen                      enable uGreen support
+    --ugreen-stacksize <n>        set uGreen stacksize to <n>
+    --stackless                   enable usage of tasklet (only on Stackless Python)
+    --no-site                     do not import site.py on startup
+    --vhost                       enable virtual hosting
+    --routing                     enable uWSGI advanced routing
+    --http <addr>                 start embedded HTTP server on <addr>
+    --http-only                   start only the embedded HTTP server
+    --http-var KEY[=VALUE]        add var KEY to uwsgi requests made by the embedded HTTP server
+    --catch-exceptions            print exceptions in the browser
+    --mode                        set configuration mode
+    --env KEY=VALUE               set environment variable
+    --vacuum                      clear the environment on exit (remove UNIX sockets and pidfiles)
+    --ping <addr>                 ping a uWSGI server (returns 1 on failure 0 on success)
+    --ping-timeout <n>            set ping timeout to <n>
+    --version                     print server version
+    -d|--daemonize <logfile|addr> daemonize and log into <logfile> or udp <addr>    
+}}}
+
+== A simple WSGI app ==
+
+Write a tiny standard WSGI app (call it myapp.py):
+
+{{{
+def application(environ, start_response):
+    start_response('200 OK', [('Content-Type', 'text/plain')])
+    yield 'Hello World\n'
+}}}
+
+and run the uWSGI server binding it on address 127.0.0.1 on port 3031
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp
+}}}
+
+Look at the myapp thing, it does not include the .py extension as this is a REAL python module, imported by uWSGI.
+
+Now take your webserver of choice and configure it to point its uwsgi handler to the address 127.0.0.1:3031
+
+Go to your webbrowser and you should see the Hello World message.
+
+== Concurrency (multiple workers) ==
+
+When things start going wild, you have to take in account the concurrency of your app.
+You can add copies of the same app bound to the same uwsgi socket with the -p flag:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4
+}}}
+
+This will spawn 4 uWSGI workers ready to manage your high loads.
+
+== Self-healing (master process, harakiri and address space limiting) ==
+
+If you ever go in production, you know how many funny cronjobs or monitoring stuff you have added to your server.
+The uWSGI master process try to manage your app in the best possibile way, killing (or respawning) workers and monitoring them.
+
+Simply add the -M option to yor command line:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M
+}}}
+
+The Master Process, is one othe core component of the uWSGI server. It does a lot of things, you should always enable it (sorry we will not enable it by default).
+
+So the master process will check your processes. But we need a more aggressive policy.
+
+The harakiri come.
+
+It is the time limit every request must do its job in. If the Master process find a request that is taking longer time, it will kill and respawn it.
+
+To enable harakiri you use the -t flag 
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20
+}}}
+
+With this flags your requests never take more than 20 seconds to end their jobs. Longer requests will be brutally killed.
+
+What about the memory ?
+
+In the cloud-era we will take in account our server resources again. Memory is a key factor, but modern systems manage memory in advanced and funny ways. On modern system you want to limit the address space (or virtual memory) of your processes, as this includes ALL the memory mappings (included the ugly swap).
+
+You can limit the amount of address space a uWSGI worker can grow using the --limit-as flag:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128
+}}}
+
+This will limit your workers address space usage to max 128 Megs.
+
+Address space/Virtual memory is an advanced topic every programmer must understand. Enable the --limit-as flag only when you have understood all the implication.
+
+== Limit requests ==
+
+For variuos purpose you could want to limit the number of requests a single workers can manage. After this limit the worker will be respawned freeing all resources.
+
+use the -R option to set a request limit:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -R 10000
+}}}
+
+This will respawn every worker that reach 10000 requests.
+
+== Memory report ==
+
+On development/debugging fase, looking at the resource usage of every request is an important task.
+If you add the -m flag you will get memory reports (Address space and even RSS memory):
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m
+}}}
+
+We have a pretty long command line (and trust me, it will grow), why do not use a more  convenient way ?
+
+
+You can configure uWSGI apps (and the server itself) in a lot of way: command line, python modules, wsgi files, [wiki:UsePaste paste] and even XML
+
+== The XML configuration file ==
+
+You can put ALL the command line long-options in a xml file (call it uwsgi.xml):
+
+{{{
+<uwsgi>
+  <socket>127.0.0.1:3031</socket>
+  <module>myapp</module>
+  <processes>4</processes>
+  <master/>
+  <harakiri>20</harakiri>
+  <limit-as>128</limit-as>
+  <memory-report/>
+</uwsgi>
+}}}
+
+and run it with:
+
+{{{
+./uwsgi -x uwsgi.xml
+}}}
+
+The xml support requires libxml2, so when you compile uWSGI remember to have it (and its headers) installed.
+
+By default the xml support is enabled, you can remove it editing the uwsgiconfig.py file
+
+== INI files ==
+
+XML sucks ? What you say about .INI files ?
+
+{{{
+[uwsgi]
+socket=127.0.0.1:3031
+module=myapp
+processes=4
+master=true
+harakiri=20
+limit-as=128
+memory-report=true
+}}}
+
+{{{
+./uwsgi --ini uwsgi.ini
+}}}
+
+== Threading ==
+
+Threads are a controversial topic in Python world. The GIL is loved and hated but is here.
+
+uWSGI is a preforked server but supports threads run by your WSGI apps. 
+
+If you want (or need) to run threads in your apps add the -T flag
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T
+}}}
+
+You could even run threads in your Master process, but please do not do it...If you start python threads in your python module initialization they will be executed by the master process. So if you do not want it, spawn them after the first WSGI request.
+
+== Managing PYTHONPATH ==
+
+Understanding the python module-search path is the key to wisdom.
+uWSGI try to make this thing easy for you with the --python-path flag. You can specify up to 64 directory to add to your python environment:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T --python-path /opt1 --python-path /lib/boh2
+}}}
+
+This will add /opt1 and /lib/boh2 to your pythonpath. If your uWSGI python module is not in the pythonpath, uWSGI will not find it, so --python-path is your friend.
+
+Remember that the current working directory is always automatically added to your pythonpath
+
+
+== Virtualenv ==
+
+VirtualEnv is an awesome technology a lot of python developers fall in love with.
+You can easy use your virtualenv passing the -H option:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv
+}}}
+
+This will set your python environment to use the /myvenv virtualenv
+
+Damn the command line is becoming fu**ing long. Why not using XML ? ;)
+
+== The integrated Profiler ==
+
+Profiling your app is another important task in the development/debug phase.
+If you add the -P flag every request will be profiled:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P
+}}}
+
+(Note: starting from version 0.9.6 the profiler will not be compiled in by default. If you want to use it, enable it in uwsgiconfig.py)
+
+== Multiple interpreters ==
+
+This is another controversial python thing.
+
+You can run multiple apps in your uWSGI server, and sometimes you want to grant them some form of isolation (mainly to avoid namespace mess). The multiple interpreter mode is enabled when needed but you can force it off passing the -i flag. If you are in multiple interpreter mode the uWSGI server will signal it to you on startup
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i
+}}} 
+
+== Daemonize ==
+
+When you are in production you want your uWSGI process to run on startup and go in background (this is called a daemon).
+
+To daemonize uWSGI pass it the -d option with the path of a logfile (in no-daemon mode, uWSGI will log to stderr)
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i -d /var/log/uwsgi.log
+}}}
+
+
+Now you are ready to go in production. Time to see some hard stuff.
+
+== Advanced tuning ==
+
+High-loaded site or huge hardware or systems can require tuning of the internals of the uWSGI server.
+
+=== Backlog listen queue ===
+
+Every listening socket has a queue. When a request is received it will be put in this queue until a process accept() it.
+By default this queue is set to 64 slot on uWSGI startup. If you nedd to increase it you can use the -l option:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i -d /var/log/uwsgi.log -l 100
+}}}
+
+=== socket timeout ===
+
+Every socket operation of the uWSGI server set a timeout. By default it is 4 seconds but you can modify it with the -z option:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i -d /var/log/uwsgi.log -l 100 -z 5
+}}}
+
+=== buffer size ===
+
+Every uwsgi packet is received and parsed in the same buffer. By default this buffer is 4K. This should be enough for every case, but you could need to increase it (up to 64K). The -b flag is for you
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i -d /var/log/uwsgi.log -l 100 -z 5 -b 8192
+}}}
+
+
+=== vector size ===
+
+uWSGI uses vector based I/O to increase performance. This need a pre-allocated area where to put the pointers and size of the data to send to the webserver. You can modify the number of vector slot in this area with the -v option:
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i -d /var/log/uwsgi.log -l 100 -z 5 -b 8192 -v 128
+}}}
+
+This will allocate a vector area of 128 slot (this will allow you to manage about 32 HTTP headers). By default 64 slots are allocated.
+
+=== python optimization ===
+
+The python environment can optimize the code. there are various level of optimization. If you need you can enable it with the -O option
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 --limit-as 128 -m -T -H /myvenv -P -i -d /var/log/uwsgi.log -l 100 -z 5 -b 8192 -O 2
+}}}
+
+will set the python optimization level to 2.
+Beware that your app could became unstable enabling optimization.
+
+
+== The Process reaper ==
+
+If you run external processes on your web apps, sometimes you could see zombie processes running on your system.
+This is caused by a design error in your app, but you can automatically get rid of them without modifying your app with the -r option.
+
+{{{
+./uwsgi -s 127.0.0.1:3031 -w myapp -p 4 -M -t 20 -r
+}}}
+
+This will enable the process reaper. After every request the worker will call waitpid(-1, ...) removing all zombies generated by your app.
+
+== UNIX sockets ==
+
+You can avoid the overhead of the full TCP stack using UNIX sockets.
+
+Simply specify the path of your socket in the -s option:
+
+{{{
+./uwsgi -s /tmp/uwsgi.sock -w myapp -p 4 -M -t 20 -r
+}}}
+
+This will bind your uWSGI server to the unix socket /tmp/uwsgi.sock
+
+Remember that UNIX socket are filesystem object, so they have to obey to the UNIX permission scheme.
+
+If you do not want to go crazy (or simply if you are too lazy) you can automatically chmod unix socket to 666 with the -C option:
+
+{{{
+./uwsgi -s /tmp/uwsgi.sock -w myapp -p 4 -M -t 20 -r -C
+}}}
+
+On Linux system you can avoid permission problems, using the abstract namespace (-a option). Unix socket in the abstract namespace are no filesystem object:
+
+{{{
+./uwsgi -s my_usgi -a -w myapp -p 4 -M -t 20 -r -C
+}}}
+
+Tis will create the unix socket @my_uwsgi in the abstract namespace. (warning not all webserver handlers support this feature)
+
+
+== Disable logging ==
+
+uWSGI logging could be huge (and even a performance killer). If you do not need it (for example for framework that already log requests) you can disable it with the -L option. Only errors will be logged.
+
+{{{
+./uwsgi -s my_usgi -a -w myapp -p 4 -M -t 20 -r -C -L
+}}}
+
+== Passing argument to your python app ==
+
+Sometimes you want to pass arguments to your python apps. uWSGI can emulate this behaviour using the --pyargv option:
+
+{{{
+./uwsgi -s my_usgi -a -w myapp -p 4 -M -t 20 -r -C -L --pyargv "-a 1 -b 2 -c 3"
+}}}
+
+This will pass the arguments -a 1 -b 2 -c 3 to your python app. You can even use getopt on them
+
+== Pidfile ==
+
+Pidfiles are an invaluable commodity. You can write the pidfile for the uWSGI server using the --pidfile option
+
+{{{
+./uwsgi -s my_usgi -a -w myapp -p 4 -M -t 20 -r -C -L --pidfile /tmp/uwsgi.pid
+}}}
+
+== HTTP for development ==
+
+Starting from version 0.9.6, uWSGI includes a threaded HTTP server, useful for development/testing.
+
+Simply choose an address to bind to and:
+
+{{{
+./uwsgi --http address:port -w myapp
+}}}
+
+You do not need to pass the --socket/-s option as the HTTP process will automagically create one for uwsgi communication
+
+== Examples ==
+
+Take a look at all the examples provided. They will show you how to become a uWSGI black belt
+
+[wiki:Example uWSGI usage examples]
+
+== Advanced topics ==
+
+Now you are a uWSGI master, time to check some of the advanced topics:
+
+ * [wiki:uWSGIReload uWSGIReload]
+ * The [wiki:Spooler Spooler]
+ * SharedArea
+ * ApplicationsDict
+ * DynamicApps
+ * EmbeddedModule
+ * ClusteredExamples
+ * FastFuncs
+ * ErlangIntegration
+
+...and more 
