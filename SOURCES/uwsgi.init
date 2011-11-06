@@ -41,7 +41,7 @@ each_action() {
         for f in $configs; do
             case "$action" in
                 condrestart|try-restart)
-                    rhstatus "$f" 2>/dev/null && restart "$f"
+                    rh_status "$f" 2>/dev/null && restart "$f"
                     ;;
                 force-reload|restart)
                     stop "$f"
@@ -148,7 +148,7 @@ case $1 in
         each_action "$1"
         ;;
     *)
-        echo "Usage: $0 [reload|start|stop]"
+        echo "Usage: $0 {condrestart|reload|restart|start|status|stop}"
         exit 2
         ;;
 esac
